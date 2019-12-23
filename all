@@ -1,0 +1,253 @@
+import gevent
+import gevent.monkey
+
+gevent.monkey.patch_all()
+import requests
+import re
+import json
+from lxml import etree
+import math
+import time
+import csv
+
+
+
+def down_loader(url):
+    headers={
+        "Connection":"keep - alive",
+        "Cookie":"CURRENT_FNVAL=16; buvid3=88422732-9545-4003-A76F-C45D55C2CB8B110248infoc; stardustvideo=1; _uuid=36CD645F-52C0-0E64-68A8-AD0F4CDDED1060678infoc; sid=90tn7w0g; fts=1557035693",
+        "Host":"search.bilibili.com",
+        "Upgrade-Insecure-Requests":"1",
+        "referer":"https://www.bilibili.com/video/av37829475/?spm_id_from=333.334.b_63686965665f7265636f6d6d656e64.16",
+        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36",
+    }
+    html=requests.get(url,timeout=60).text
+    return html
+lists_container=[]
+
+# word = ["王者荣耀 口红","王者荣耀 cosplay","王者荣耀 彩妆"]
+word = ["王者荣耀 仿妆", "王者荣耀 口红","王者荣耀 cosplay","王者荣耀 彩妆"]
+try:
+    for i in range(len(word)):
+        url1="https://search.bilibili.com/all?keyword={}&from_source=banner_search&order=pubdate&duration=0&tids_1=0".format(word[i])
+        list_content=etree.HTML(down_loader(url1))
+        if list_content.xpath('//ul[@class="pages"]/li'):
+            for m in range(len(list_content.xpath('//ul[@class="pages"]/li')) - 1):
+                list_url = url1 + "&page={}".format(m + 1)
+                print(list_url)
+                list_detil=etree.HTML(down_loader(list_url))
+                list_detil_url=list_detil.xpath('//li[@class="video matrix"]/a/@href')
+                list_detil_title=list_detil.xpath('//li[@class="video matrix"]/a/@title')
+                list_detil_up=list_detil.xpath('//div[@class="tags"]/span[4]/a/text()')
+
+                list_detil_watch=list_detil.xpath('//div[@class="tags"]/span[1]/text()')
+                list_detil_Barrage=list_detil.xpath('//div[@class="tags"]/span[2]/text()')  #弹幕
+                list_detil_time=list_detil.xpath('//div[@class="tags"]/span[3]/text()')
+                print(list_detil_up)
+                print(list_detil_url)
+
+                # contents_lists=[]
+                for n in range(len(list_detil.xpath('//li[@class="video matrix"]/a/@href'))):
+                    reply_url = "https://api.bilibili.com/x/v2/reply?type=1&oid={}".format((re.findall("av(.*?)\?from", "https:" + list_detil_url[n])[0]))
+                    print(reply_url)
+                    print("++++++++++++")
+                    list_detil =down_loader(reply_url)
+                    content = json.loads(list_detil)
+                    try:
+                        pages_num = math.ceil(round((content["data"]["page"]["count"]) / 20, 1))
+                        contents_list = ""
+                        for k in range(pages_num):
+                            print("第%d页评论"%(k+1))
+                            reply_url_all =reply_url+ "&pn={}".format(k + 1)
+                            list_detil_all=down_loader(reply_url_all)
+                            contents = json.loads(list_detil_all)
+                            for kk in range(len(contents["data"]["replies"])):
+                                contents_reply=contents["data"]["replies"][kk]["content"]["message"]
+                                contents_up=contents["data"]["replies"][kk]["member"]["uname"]
+                                contents_time=contents["data"]["replies"][kk]["ctime"]
+                                contents_time=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(contents_time))
+                                # contents_list += contents_reply+"{{{{{}}}}"
+                                lists_container.append(
+                                    [word[i], list_detil_title[n], "https:" + list_detil_url[n], list_detil_up[n],
+                                     list_detil_time[n].strip(), list_detil_watch[n].strip(),
+                                     list_detil_Barrage[n].strip(), contents_up,contents_time,contents_reply])
+                                print([word[i], list_detil_title[n], "https:" + list_detil_url[n], list_detil_up[n],
+                                     list_detil_time[n].strip(), list_detil_watch[n].strip(),
+                                     list_detil_Barrage[n].strip(), contents_up,contents_time,contents_reply])
+                        # contents_lists.append(contents_list)
+                    except:
+                        pass
+
+
+
+        else:
+            # list_detil = etree.HTML(down_loader(list_url))
+            list_detil_url = list_content.xpath('//li[@class="video matrix"]/a/@href')
+            list_detil_title = list_content.xpath('//li[@class="video matrix"]/a/@title')
+            list_detil_up = list_content.xpath('//div[@class="tags"]/span[4]/a/text()')
+            list_detil_watch = list_content.xpath('//div[@class="tags"]/span[1]/text()')
+            list_detil_Barrage = list_content.xpath('//div[@class="tags"]/span[2]/text()')
+            list_detil_time = list_content.xpath('//div[@class="tags"]/span[3]/text()')
+            for n in range(len(list_content.xpath('//li[@class="video matrix"]/a/@href'))):
+                reply_url = "https://api.bilibili.com/x/v2/reply?type=1&oid={}".format((re.findall("av(.*?)\?from", "https:" + list_detil_url[n])[0]))
+                list_detil =down_loader(reply_url)
+                content = json.loads(list_detil)
+                try:
+                    pages_num = math.ceil(round((content["data"]["page"]["count"]) / 20, 1))
+
+                    for k in range(pages_num):
+                        print("第%d页评论" % (k + 1))
+                        reply_url_all = reply_url + "&pn={}".format(k + 1)
+                        list_detil_all = down_loader(reply_url_all)
+                        contents = json.loads(list_detil_all)
+                        for kk in range(len(contents["data"]["replies"])):
+                            contents_reply = contents["data"]["replies"][kk]["content"]["message"]
+                            contents_up=contents["data"]["replies"][kk]["member"]["uname"]
+                            contents_time=contents["data"]["replies"][kk]["ctime"]
+                            contents_time=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(contents_time))
+                            lists_container.append(
+                                [word[i], list_detil_title[n], "https:" + list_detil_url[n], list_detil_up[n],
+                                 list_detil_time[n].strip(), list_detil_watch[n].strip(),
+                                 list_detil_Barrage[n].strip(), contents_up, contents_time, contents_reply])
+                            print([word[i], list_detil_title[n], "https:" + list_detil_url[n], list_detil_up[n],
+                                   list_detil_time[n].strip(), list_detil_watch[n].strip(),
+                                   list_detil_Barrage[n].strip(), contents_up, contents_time, contents_reply])
+                except:
+                    pass
+                # lists_container.append([word[i], list_detil_title[n], "https:" + list_detil_url[n], list_detil_up[n],list_detil_time[n].strip(), list_detil_watch[n].strip(),list_detil_Barrage[n].strip(), contents_list])
+
+    print(lists_container)
+    with open("王者荣耀bilibili1.csv", "w", encoding="utf-8-sig",newline="") as f:
+        k = csv.writer(f, dialect="excel")
+        k.writerow(["关键词", "标题", "链接", "up主", "发布时间", "观看数量","弹幕数量", "评论作者","评论时间", "评论内容"])
+
+        for list in lists_container:
+            k.writerow(list)
+
+except:
+    print(lists_container)
+    with open("王者荣耀bilibili12.csv", "w", encoding="utf-8-sig", newline="") as f:
+        k = csv.writer(f, dialect="excel")
+        k.writerow(["关键词", "标题", "链接", "up主", "发布时间", "观看数量", "弹幕数量", "评论作者", "评论时间", "评论内容"])
+
+        for list in lists_container:
+            k.writerow(list)
+
+# word=["Lays Stax","乐事 桶"]
+# def download(keyword):
+#     try:
+#         url1 = "https://search.bilibili.com/all?keyword={}".format(keyword)
+#         list_content = etree.HTML(down_loader(url1))
+#         if list_content.xpath('//ul[@class="pages"]/li'):
+#             for m in range(len(list_content.xpath('//ul[@class="pages"]/li')) - 1):
+#                 list_url = url1 + "&page={}".format(m + 1)
+#                 print(list_url)
+#                 list_detil = etree.HTML(down_loader(list_url))
+#                 list_detil_url = list_detil.xpath('//li[@class="video matrix"]/a/@href')
+#                 list_detil_title = list_detil.xpath('//li[@class="video matrix"]/a/@title')
+#                 list_detil_up = list_detil.xpath('//div[@class="tags"]/span[4]/a/text()')
+#
+#                 list_detil_watch = list_detil.xpath('//div[@class="tags"]/span[1]/text()')
+#                 list_detil_Barrage = list_detil.xpath('//div[@class="tags"]/span[2]/text()')
+#                 list_detil_time = list_detil.xpath('//div[@class="tags"]/span[3]/text()')
+#                 print(list_detil_up)
+#                 print(list_detil_url)
+#
+#                 # contents_lists=[]
+#                 for n in range(len(list_detil.xpath('//li[@class="video matrix"]/a/@href'))):
+#                     reply_url = "https://api.bilibili.com/x/v2/reply?type=1&oid={}".format(
+#                         (re.findall("av(.*?)\?from", "https:" + list_detil_url[n])[0]))
+#                     print(reply_url)
+#                     print("++++++++++++")
+#                     list_detil = down_loader(reply_url)
+#                     content = json.loads(list_detil)
+#                     try:
+#                         pages_num = math.ceil(round((content["data"]["page"]["count"]) / 20, 1))
+#                         contents_list = ""
+#                         for k in range(pages_num):
+#                             reply_url_all = reply_url + "&pn={}".format(k + 1)
+#                             list_detil_all = down_loader(reply_url_all)
+#                             contents = json.loads(list_detil_all)
+#                             for kk in range(len(contents["data"]["replies"])):
+#                                 contents_reply = contents["data"]["replies"][kk]["content"]["message"]
+#                                 # contents_up=contents["data"]["replies"][0]["member"]["uname"]
+#                                 # contents_time=contents["data"]["replies"][0]["ctime"]
+#                                 # contents_time=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(contents_time))
+#                                 contents_list += contents_reply + "{{{{{}}}}"
+#                         # contents_lists.append(contents_list)
+#                     except:
+#                         pass
+#
+#                     lists_container.append([word[i], list_detil_title[n], "https:" + list_detil_url[n], list_detil_up[n],
+#                                             list_detil_time[n].strip(), list_detil_watch[n].strip(),
+#                                             list_detil_Barrage[n].strip(), contents_list])
+#
+#         else:
+#             # list_detil = etree.HTML(down_loader(list_url))
+#             list_detil_url = list_content.xpath('//li[@class="video matrix"]/a/@href')
+#             list_detil_title = list_content.xpath('//li[@class="video matrix"]/a/@title')
+#             list_detil_up = list_content.xpath('//div[@class="tags"]/span[4]/a/text()')
+#             list_detil_watch = list_content.xpath('//div[@class="tags"]/span[1]/text()')
+#             list_detil_Barrage = list_content.xpath('//div[@class="tags"]/span[2]/text()')
+#             list_detil_time = list_content.xpath('//div[@class="tags"]/span[3]/text()')
+#             for n in range(len(list_content.xpath('//li[@class="video matrix"]/a/@href'))):
+#                 reply_url = "https://api.bilibili.com/x/v2/reply?type=1&oid={}".format(
+#                     (re.findall("av(.*?)\?from", "https:" + list_detil_url[n])[0]))
+#                 list_detil = down_loader(reply_url)
+#                 content = json.loads(list_detil)
+#                 try:
+#                     pages_num = math.ceil(round((content["data"]["page"]["count"]) / 20, 1))
+#                     contents_list = ""
+#                     for k in range(pages_num):
+#                         reply_url_all = reply_url + "&pn={}".format(k + 1)
+#                         list_detil_all = down_loader(reply_url_all)
+#                         contents = json.loads(list_detil_all)
+#                         for kk in range(len(contents["data"]["replies"])):
+#                             contents_reply = contents["data"]["replies"][kk]["content"]["message"]
+#                             # contents_up=contents["data"]["replies"][0]["member"]["uname"]
+#                             # contents_time=contents["data"]["replies"][0]["ctime"]
+#                             # contents_time=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(contents_time))
+#                             contents_list += contents_reply + "{{{{{}}}}"
+#                 except:
+#                     pass
+#                 lists_container.append([word[i], list_detil_title[n], "https:" + list_detil_url[n], list_detil_up[n],
+#                                         list_detil_time[n].strip(), list_detil_watch[n].strip(),
+#                                         list_detil_Barrage[n].strip(), contents_list])
+#
+#         with open("bilibili12.csv", "w", encoding="utf-8", newline="") as f:
+#             k = csv.writer(f, dialect="excel")
+#             k.writerow(["关键词", "标题", "链接", "up主", "发布时间", "观看数量", "弹幕数量", "评论内容"])
+#
+#             for list1 in lists_container:
+#                 k.writerow(list1)
+#     except:
+#         # print(lists_container)
+#         with open("bilibili11.csv", "w", encoding="utf-8", newline="") as f:
+#             k = csv.writer(f, dialect="excel")
+#             k.writerow(["关键词", "标题", "链接", "up主", "发布时间", "观看数量", "弹幕数量", "评论内容"])
+#
+#             for list1 in lists_container:
+#                 k.writerow(list1)
+#
+# #协程版
+# if __name__ == "__main__":
+#     word = ["薯片", "薯条", "玉米片", "膨化食品", "燕麦", "麦片", "营养早餐", "可比克", "上好佳 薯片", "Bugles", "品客", "西麦", "雀巢优麦", "雀巢麦片","江中猴姑"]
+#     length=len(word)
+#     xclist = []  #构建协程链接池
+#     for i in range(length):
+#         xclist.append(gevent.spawn(download,word[i] ))
+#     print(xclist)
+#
+#
+#
+#     gevent.joinall(xclist)
+
+
+# with open("bilibili10.csv", "w", encoding="utf-8", newline="") as f:
+#     k = csv.writer(f, dialect="excel")
+#     k.writerow(["关键词", "标题", "链接", "up主", "发布时间", "观看数量", "弹幕数量", "评论内容"])
+#
+#     for list1 in lists_container:
+#         k.writerow(list1)
+
+#
