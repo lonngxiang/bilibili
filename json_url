@@ -1,0 +1,65 @@
+import gevent
+import gevent.monkey
+
+gevent.monkey.patch_all()
+import requests
+import re
+import json
+from lxml import etree
+import math
+import time
+import csv
+from collections import Counter
+import pymysql
+
+def down_html(key_word, page_id=1):
+    """
+    @param key_word:关键词
+    @param page_id:页码
+    @return:请求下载网页源代码
+    """
+    url = "https://api.bilibili.com/x/web-interface/search/all/v2?context=&page={}&order=&keyword={}".format(page_id,key_word)
+    headers = {
+        # "Host":"api.bilibili.com",
+        # "Cookie":"_uuid=32C8C785-5AC1-D195-83A3-9B56C8759BDE10794infoc; buvid3=6E75F6FE-E083-4F17-BFEB-2A03EAFF25B0190965infoc; INTVER=1; CURRENT_FNVAL=16; sid=apwgegc4; stardustvideo=1; LIVE_BUVID=AUTO2515770689769746; rpdid=|(u)~l~Y))u)0J'ul~~|Y)m~Y; laboratory=1-1",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36"
+
+    }
+    html = requests.get(url, headers=headers, timeout=10, verify=False).text
+    return json.loads(html)
+
+
+def down_detail(key_word):
+    list_content = down_html(key_word)
+    print(list_content['data']['result'])
+    for i in range(len(list_content['data']['result'])):
+        if list_content['data']['result'][i]['result_type'] =="video":
+            print(len(list_content['data']['result'][i]['data']))
+            for j in range(len(list_content['data']['result'][i]['data'])):
+                print(j+1)
+                title = list_content['data']['result'][i]['data'][j]['title'].replace('<em class="keyword">','').replace('</em>','')
+                vedio_url = list_content['data']['result'][i]['data'][j]['arcurl']
+                play_points = list_content['data']['result'][i]['data'][j]['play']
+                vedio_info = "弹幕数量："+str(list_content['data']['result'][i]['data'][j]['video_review'])+" "+list_content['data']['result'][i]['data'][j]['description']
+                user_name = list_content['data']['result'][i]['data'][j]['author']
+                user_link = "https://space.bilibili.com/"+str(list_content['data']['result'][i]['data'][j]['mid'])
+                time_cost = list_content['data']['result'][i]['data'][j]['duration']
+                count = Counter(time_cost)
+                if count[":"] == 1:
+                    m, s = time_cost.strip().split(":")
+                    time_cost = (int(m) * 60 + int(s))
+                elif count[":"] == 2:
+                    h, m, s = time_cost.strip().split(":")
+                    time_cost = (int(h) * 3600 + int(m) * 60 + int(s))
+                else:
+                    time_cost = time_cost
+                poster_url = "https:"+list_content['data']['result'][i]['data'][j]['pic']
+                print(title,vedio_url,time_cost,poster_url,user_name,user_link,play_points,vedio_info)
+
+
+
+
+
+
+if __name__ == "__main__":
+    down_detail("疯狂的外星人")
